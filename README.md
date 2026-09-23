@@ -203,6 +203,42 @@ installed is taken back out before the module is freed.
 
 ---
 
+## Several plugins can hook the same function
+
+You don't have to check whether something else got there first. The loader keeps one real detour
+per address and splices every owner onto a chain:
+
+```
+target -> loader's hook -> ModA's hook -> ModB's hook -> the real function
+```
+
+Links run in install order, and the `original` you're handed calls the next one rather than jumping
+straight to the game. Preload plugins run in `priority` order, so a lower priority number puts you
+earlier in the chain.
+
+Three things follow:
+
+- **Your `original` is a loader-owned thunk, not the game function.** Call it; don't compare it
+  against an address or read bytes through it. It can be rewired underneath you when a link in
+  front of yours is removed.
+- **If you don't call your `original`, nothing behind you runs.** A legitimate thing to do
+  deliberately, and a confusing bug otherwise.
+- **Unhooking only unhooks you.** The original prologue is restored when the *last* link on that
+  address goes.
+
+Identity is the **resolved address**, not the pattern — you and another mod will almost certainly
+write different AOBs for the same function, and the loader only cares where they land.
+
+```
+> hooks
+12 hooked address(es), 1 shared by more than one owner:
+  exe+0x3F219B0  (2 hooks)
+      1. modloader                engine_init
+      2. EarlyPatch               FEngineLoop::PreInit
+```
+
+---
+
 ## Failing is cheap, and the game never pays for it
 
 A preload plugin that fails anything is unloaded, reported, and skipped — and the game starts
